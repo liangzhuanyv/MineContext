@@ -13,7 +13,7 @@ from math import log
 from typing import Any, Dict, List, Optional, Set
 
 from opencontext.config.global_config import get_prompt_group
-from opencontext.llm.global_vlm_client import generate_for_agent_async, generate_with_messages_async
+from opencontext.llm.global_llm_client import generate_for_agent_async, generate_with_messages_async
 from opencontext.tools.tool_definitions import (
     ALL_PROFILE_TOOL_DEFINITIONS,
     ALL_RETRIEVAL_TOOL_DEFINITIONS,

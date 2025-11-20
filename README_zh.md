@@ -346,26 +346,33 @@ uv sync
 1. **基本配置** (`config/config.yaml`)：
 
 ```yaml
-server:
-  host: 127.0.0.1
-  port: 8765
-  debug: false
-
 embedding_model:
-  provider: doubao # 选项：openai, doubao
-  api_key: your-api-key
+  provider: doubao # 选项：openai, doubao, custom
+  base_url: https://ark.cn-beijing.volces.com/api/v3
+  api_key: your-embedding-api-key
   model: doubao-embedding-large-text-240915
+  output_dim: 2048
 
+# 适合屏幕/文档理解的经济型多模态模型
 vlm_model:
-  provider: doubao # 选项：openai, doubao
-  api_key: your-api-key
-  model: doubao-seed-1-6-flash-250828
+  provider: doubao
+  base_url: https://ark.cn-beijing.volces.com/api/v3
+  api_key: your-vlm-api-key
+  model: doubao-1-5-vision-lite-250315
 
-capture:
-  enabled: true
-  screenshot:
-    enabled: true # 开启截图捕获
-    capture_interval: 5 # 截图间隔（秒）
+# 适合对话、总结和规划的高能力文本模型
+llm_model:
+  provider: openai
+  base_url: https://api.openai.com/v1
+  api_key: your-llm-api-key
+  model: gpt-5
+
+# 可选：用于重排序搜索结果的模型
+reranker_model:
+  provider: custom
+  base_url: https://your-rerank-endpoint
+  api_key: your-rerank-api-key
+  model: reranker-large
 ```
 
 2. **提示模板** (`config/prompts_*.yaml`)：
@@ -400,6 +407,16 @@ source .venv/bin/activate  # Windows系统：.venv\Scripts\activate
 pip install -e .
 opencontext start --port 1733
 ```
+
+### 一键生成 Windows 可执行程序
+
+项目内置 PyInstaller 打包脚本。在 Windows 终端运行：
+
+```powershell
+./build.bat
+```
+
+脚本会自动安装依赖、生成 `dist/main.exe`，并将 `config/` 目录复制到可执行文件旁，双击 `main.exe` 即可启动后端服务。
 
 # 💎 MineContext 与我的世界
 

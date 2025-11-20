@@ -22,7 +22,7 @@ from opencontext.context_processing.merger.merge_strategies import (
 )
 from opencontext.context_processing.processor.base_processor import BaseContextProcessor
 from opencontext.llm.global_embedding_client import do_vectorize
-from opencontext.llm.global_vlm_client import generate_with_messages
+from opencontext.llm.global_llm_client import generate_with_messages
 from opencontext.models.context import *
 from opencontext.models.enums import ContextType, MergeType
 from opencontext.storage.global_storage import get_storage

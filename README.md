@@ -349,26 +349,33 @@ uv sync
 1. **Basic Configuration** (`config/config.yaml`):
 
 ```yaml
-server:
-  host: 127.0.0.1
-  port: 8765
-  debug: false
-
 embedding_model:
-  provider: doubao # options: openai, doubao
-  api_key: your-api-key
+  provider: doubao # options: openai, doubao, custom
+  base_url: https://ark.cn-beijing.volces.com/api/v3
+  api_key: your-embedding-api-key
   model: doubao-embedding-large-text-240915
+  output_dim: 2048
 
+# Cheap, multimodal model for screen and document understanding
 vlm_model:
-  provider: doubao # options: openai, doubao
-  api_key: your-api-key
-  model: doubao-seed-1-6-flash-250828
+  provider: doubao
+  base_url: https://ark.cn-beijing.volces.com/api/v3
+  api_key: your-vlm-api-key
+  model: doubao-1-5-vision-lite-250315
 
-capture:
-  enabled: true
-  screenshot:
-    enabled: true # enable screenshot capture
-    capture_interval: 5 # capture interval in seconds
+# High-capacity language model for chat, summaries and planning
+llm_model:
+  provider: openai
+  base_url: https://api.openai.com/v1
+  api_key: your-llm-api-key
+  model: gpt-5
+
+# Optional reranker for better retrieval ordering
+reranker_model:
+  provider: custom
+  base_url: https://your-rerank-endpoint
+  api_key: your-rerank-api-key
+  model: reranker-large
 ```
 
 2. **Prompt Templates** (`config/prompts_*.yaml`):
@@ -403,6 +410,16 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 pip install -e .
 opencontext start --port 1733
 ```
+
+### Build a ready-to-run Windows executable
+
+MineContext ships with a PyInstaller recipe. On Windows, run:
+
+```powershell
+./build.bat
+```
+
+The script installs dependencies, packages the backend into `dist/main.exe`, and copies the `config/` directory beside the executable so you can double-click `main.exe` to launch the API server.
 
 # 💎 The Philosophy Behind the Name
 

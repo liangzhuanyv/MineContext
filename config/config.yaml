@@ -24,9 +24,23 @@ document_processing:
   text_threshold_per_page: 50 # Scanned document threshold: pages with fewer characters than this value are considered scanned documents (requires VLM)
 
 vlm_model:
+  base_url: "${VLM_BASE_URL:${LLM_BASE_URL}}"
+  api_key: "${VLM_API_KEY:${LLM_API_KEY}}"
+  model: "${VLM_MODEL:${LLM_MODEL}}"
+  provider: ""
+
+# Primary language model configuration (used for conversations and summaries)
+llm_model:
   base_url: "${LLM_BASE_URL}"
   api_key: "${LLM_API_KEY}"
   model: "${LLM_MODEL}"
+  provider: ""
+
+# Re-ranking model configuration (used to resort retrieval results when available)
+reranker_model:
+  base_url: "${RERANK_BASE_URL:${LLM_BASE_URL}}"
+  api_key: "${RERANK_API_KEY:${LLM_API_KEY}}"
+  model: "${RERANK_MODEL}"
   provider: ""
 
 embedding_model:

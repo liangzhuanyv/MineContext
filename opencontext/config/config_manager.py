@@ -194,8 +194,12 @@ class ConfigManager:
             # Update with new settings
             if "vlm_model" in settings:
                 user_settings["vlm_model"] = settings["vlm_model"]
+            if "llm_model" in settings:
+                user_settings["llm_model"] = settings["llm_model"]
             if "embedding_model" in settings:
                 user_settings["embedding_model"] = settings["embedding_model"]
+            if "reranker_model" in settings:
+                user_settings["reranker_model"] = settings["reranker_model"]
             if "content_generation" in settings:
                 user_settings["content_generation"] = settings["content_generation"]
             if "capture" in settings:

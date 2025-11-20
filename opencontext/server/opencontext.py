@@ -15,6 +15,8 @@ from typing import Any, Dict, List, Optional
 from opencontext.config.config_manager import ConfigManager
 from opencontext.config.global_config import GlobalConfig
 from opencontext.llm.global_embedding_client import GlobalEmbeddingClient
+from opencontext.llm.global_llm_client import GlobalLLMClient
+from opencontext.llm.global_reranker_client import GlobalRerankerClient
 from opencontext.llm.global_vlm_client import GlobalVLMClient
 from opencontext.managers.capture_manager import ContextCaptureManager
 from opencontext.managers.consumption_manager import ConsumptionManager
@@ -64,8 +66,10 @@ class OpenContext:
         try:
             GlobalConfig.get_instance()
             GlobalEmbeddingClient.get_instance()
+            GlobalLLMClient.get_instance()
             GlobalStorage.get_instance()
             GlobalVLMClient.get_instance()
+            GlobalRerankerClient.get_instance()
             self.context_operations = ContextOperations()
             self.capture_manager.set_callback(self._handle_captured_context)
             self.component_initializer.initialize_capture_components(
@@ -262,8 +266,10 @@ class OpenContext:
         return {
             "config": GlobalConfig.get_instance().is_initialized(),
             "storage": GlobalStorage.get_instance().get_storage() is not None,
-            "llm": GlobalEmbeddingClient.get_instance().is_initialized()
-            and GlobalVLMClient.get_instance().is_initialized(),
+            "embedding": GlobalEmbeddingClient.get_instance().is_initialized(),
+            "vlm": GlobalVLMClient.get_instance().is_initialized(),
+            "llm": GlobalLLMClient.get_instance().is_initialized(),
+            "reranker": GlobalRerankerClient.get_instance().is_initialized(),
             "capture": bool(self.capture_manager),
             "consumption": bool(self.consumption_manager),
         }

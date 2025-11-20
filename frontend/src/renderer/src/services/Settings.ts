@@ -4,16 +4,21 @@
 import axiosInstance from '@renderer/services/axiosConfig'
 import { get } from 'lodash'
 
+export interface BasicModelConfig {
+  modelPlatform: string // Model platform, e.g., doubao, openai, custom
+  modelId: string // Model ID
+  baseUrl: string // API base URL
+  apiKey: string // API key
+  provider?: string // Provider name (for backend compatibility)
+  outputDim?: number // Optional embedding dimension override
+}
+
 // Model configuration interface
 export interface ModelConfigProps {
-  modelPlatform: string // Model platform, e.g., doubao, openai, custom
-  modelId: string // VLM model ID
-  baseUrl: string // API base URL
-  embeddingModelId: string // Embedding model ID
-  apiKey: string // API key
-  embeddingBaseUrl?: string // Optional separate embedding base URL
-  embeddingApiKey?: string // Optional separate embedding API key
-  embeddingModelPlatform?: string // Optional separate embedding platform
+  vlm: BasicModelConfig
+  llm: BasicModelConfig
+  embedding: BasicModelConfig
+  reranker?: BasicModelConfig
 }
 
 // API response data structure
@@ -46,9 +51,7 @@ export const updateModelSettingsAPI = async (
   params: ModelConfigProps
 ): Promise<UpdateModelSettingsResponseData | undefined> => {
   const res = await axiosInstance.post<UpdateModelSettingsResponseData>('/api/model_settings/update', {
-    config: {
-      ...params
-    }
+    config: params
   })
   return get(res, 'data.data')
 }
