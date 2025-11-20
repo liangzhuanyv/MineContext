@@ -12,7 +12,7 @@ from typing import Any, Dict, List
 
 from opencontext.config.global_config import get_prompt_group
 from opencontext.context_consumption.context_agent.models.events import StreamEvent
-from opencontext.llm.global_vlm_client import (
+from opencontext.llm.global_llm_client import (
     generate_stream_for_agent,
     generate_with_messages_async,
 )

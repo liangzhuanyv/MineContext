@@ -184,7 +184,7 @@ class DocumentTextChunker(BaseChunker):
         """
         try:
             from opencontext.config.global_config import get_prompt_group
-            from opencontext.llm.global_vlm_client import generate_with_messages_async
+            from opencontext.llm.global_llm_client import generate_with_messages_async
             from opencontext.utils.json_parser import parse_json_from_response
 
             prompt_group = get_prompt_group("document_processing.text_chunking")
@@ -260,7 +260,7 @@ class DocumentTextChunker(BaseChunker):
         """
         try:
             from opencontext.config.global_config import get_prompt_group
-            from opencontext.llm.global_vlm_client import generate_with_messages_async
+            from opencontext.llm.global_llm_client import generate_with_messages_async
             from opencontext.utils.json_parser import parse_json_from_response
 
             prompt_group = get_prompt_group("document_processing.global_semantic_chunking")

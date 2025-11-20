@@ -15,6 +15,8 @@ from pydantic import BaseModel, Field
 
 from opencontext.config.global_config import GlobalConfig
 from opencontext.llm.global_embedding_client import GlobalEmbeddingClient
+from opencontext.llm.global_llm_client import GlobalLLMClient
+from opencontext.llm.global_reranker_client import GlobalRerankerClient
 from opencontext.llm.global_vlm_client import GlobalVLMClient
 from opencontext.llm.llm_client import LLMClient, LLMType
 from opencontext.server.middleware.auth import auth_dependency
@@ -29,17 +31,25 @@ _config_lock = threading.Lock()
 # ==================== Data Models ====================
 
 
-class ModelSettingsVO(BaseModel):
-    """Model settings with optional separate embedding configuration"""
-
+class BaseModelConfig(BaseModel):
     modelPlatform: str
     modelId: str
     baseUrl: str
     apiKey: str
-    embeddingModelId: str
-    embeddingBaseUrl: str | None = None
-    embeddingApiKey: str | None = None
-    embeddingModelPlatform: str | None = None
+    provider: str | None = None
+
+
+class EmbeddingModelConfig(BaseModelConfig):
+    outputDim: int | None = Field(default=2048, description="Embedding dimension override")
+
+
+class ModelSettingsVO(BaseModel):
+    """Model settings broken down by workload type"""
+
+    vlm: BaseModelConfig
+    llm: BaseModelConfig
+    embedding: EmbeddingModelConfig
+    reranker: BaseModelConfig | None = None
 
 
 class GetModelSettingsResponse(BaseModel):
@@ -95,6 +105,38 @@ def _build_llm_config(
     return config
 
 
+def _build_model_vo(raw_cfg: dict, model_cls=BaseModelConfig):
+    """Helper to transform persisted config into API payload"""
+    params = {
+        "modelPlatform": raw_cfg.get("provider", ""),
+        "modelId": raw_cfg.get("model", ""),
+        "baseUrl": raw_cfg.get("base_url", ""),
+        "apiKey": _mask_api_key(raw_cfg.get("api_key", "")),
+        "provider": raw_cfg.get("provider", ""),
+    }
+    if hasattr(model_cls, "model_fields") and "outputDim" in model_cls.model_fields:  # type: ignore[attr-defined]
+        params["outputDim"] = raw_cfg.get("output_dim")
+    return model_cls(**params)
+
+
+def _normalize_model_config(
+    new_cfg: BaseModelConfig, existing_cfg: dict, llm_type: LLMType
+) -> dict:
+    api_key = new_cfg.apiKey or ""
+    if _is_masked_api_key(api_key):
+        api_key = existing_cfg.get("api_key", "")
+    provider = new_cfg.provider or new_cfg.modelPlatform
+    normalized = _build_llm_config(
+        base_url=new_cfg.baseUrl or "",
+        api_key=api_key,
+        model=new_cfg.modelId or "",
+        provider=provider,
+        llm_type=llm_type,
+        output_dim=getattr(new_cfg, "outputDim", None),
+    )
+    return normalized
+
+
 # ==================== API Endpoints ====================
 
 
@@ -107,17 +149,15 @@ async def get_model_settings(_auth: str = auth_dependency):
             return convert_resp(code=500, status=500, message="配置未初始化")
 
         vlm_cfg = config.get("vlm_model", {})
+        llm_cfg = config.get("llm_model", {})
         emb_cfg = config.get("embedding_model", {})
+        reranker_cfg = config.get("reranker_model", {})
 
         settings = ModelSettingsVO(
-            modelPlatform=vlm_cfg.get("provider", ""),
-            modelId=vlm_cfg.get("model", ""),
-            baseUrl=vlm_cfg.get("base_url", ""),
-            apiKey=_mask_api_key(vlm_cfg.get("api_key", "")),
-            embeddingModelId=emb_cfg.get("model", ""),
-            embeddingBaseUrl=emb_cfg.get("base_url", ""),
-            embeddingApiKey=_mask_api_key(emb_cfg.get("api_key", "")),
-            embeddingModelPlatform=emb_cfg.get("provider", ""),
+            vlm=_build_model_vo(vlm_cfg),
+            llm=_build_model_vo(llm_cfg),
+            embedding=_build_model_vo(emb_cfg, EmbeddingModelConfig),
+            reranker=_build_model_vo(reranker_cfg) if reranker_cfg else None,
         )
 
         return convert_resp(data=GetModelSettingsResponse(config=settings).model_dump())
@@ -134,62 +174,46 @@ async def update_model_settings(request: UpdateModelSettingsRequest, _auth: str 
         try:
             cfg = request.config
             current_cfg = GlobalConfig.get_instance().get_config() or {}
-            current_vlm_key = (current_cfg.get("vlm_model") or {}).get("api_key", "")
-            current_emb_key = (current_cfg.get("embedding_model") or {}).get("api_key", "")
+            existing_vlm = current_cfg.get("vlm_model") or {}
+            existing_llm = current_cfg.get("llm_model") or {}
+            existing_emb = current_cfg.get("embedding_model") or {}
+            existing_reranker = current_cfg.get("reranker_model") or {}
 
-            # Resolve VLM API key
-            vlm_key = current_vlm_key if _is_masked_api_key(cfg.apiKey) else cfg.apiKey
-
-            # Resolve Embedding API key
-            if cfg.embeddingApiKey:
-                emb_key = (
-                    current_emb_key
-                    if _is_masked_api_key(cfg.embeddingApiKey)
-                    else cfg.embeddingApiKey
-                )
-            else:
-                emb_key = vlm_key
-
-            # Resolve embedding URL and provider
-            emb_url = cfg.embeddingBaseUrl or cfg.baseUrl
-            emb_provider = cfg.embeddingModelPlatform or cfg.modelPlatform
-
-            # Validation
-            if not vlm_key:
-                return convert_resp(code=400, status=400, message="VLM API key cannot be empty")
-            if not emb_key:
-                return convert_resp(
-                    code=400, status=400, message="Embedding API key cannot be empty"
-                )
-            if not cfg.modelId:
-                return convert_resp(code=400, status=400, message="VLM model ID cannot be empty")
-            if not cfg.embeddingModelId:
-                return convert_resp(
-                    code=400, status=400, message="Embedding model ID cannot be empty"
-                )
-
-            # Validate VLM
-            vlm_config = _build_llm_config(
-                cfg.baseUrl, vlm_key, cfg.modelId, cfg.modelPlatform, LLMType.CHAT
+            vlm_config = _normalize_model_config(cfg.vlm, existing_vlm, LLMType.CHAT)
+            llm_config = _normalize_model_config(cfg.llm, existing_llm, LLMType.CHAT)
+            emb_config = _normalize_model_config(
+                cfg.embedding, existing_emb, LLMType.EMBEDDING
             )
-            vlm_valid, vlm_msg = LLMClient(llm_type=LLMType.CHAT, config=vlm_config).validate()
-            if not vlm_valid:
-                return convert_resp(
-                    code=400, status=400, message=f"VLM validation failed: {vlm_msg}"
+            reranker_config = None
+            if cfg.reranker:
+                reranker_config = _normalize_model_config(
+                    cfg.reranker, existing_reranker, LLMType.CHAT
                 )
 
-            # Validate Embedding
-            emb_config = _build_llm_config(
-                emb_url, emb_key, cfg.embeddingModelId, emb_provider, LLMType.EMBEDDING
-            )
-            emb_valid, emb_msg = LLMClient(llm_type=LLMType.EMBEDDING, config=emb_config).validate()
-            if not emb_valid:
-                return convert_resp(
-                    code=400, status=400, message=f"Embedding validation failed: {emb_msg}"
-                )
+            # Validate models
+            validations = [
+                ("VLM", vlm_config, LLMType.CHAT),
+                ("LLM", llm_config, LLMType.CHAT),
+                ("Embedding", emb_config, LLMType.EMBEDDING),
+            ]
+            if reranker_config:
+                validations.append(("Reranker", reranker_config, LLMType.CHAT))
+
+            for label, model_cfg, llm_type in validations:
+                valid, msg = LLMClient(llm_type=llm_type, config=model_cfg).validate()
+                if not valid:
+                    return convert_resp(
+                        code=400, status=400, message=f"{label} validation failed: {msg}"
+                    )
 
             # Save configuration
-            new_settings = {"vlm_model": vlm_config, "embedding_model": emb_config}
+            new_settings = {
+                "vlm_model": vlm_config,
+                "llm_model": llm_config,
+                "embedding_model": emb_config,
+            }
+            if reranker_config is not None:
+                new_settings["reranker_model"] = reranker_config
 
             config_mgr = GlobalConfig.get_instance().get_config_manager()
             if not config_mgr:
@@ -205,9 +229,18 @@ async def update_model_settings(request: UpdateModelSettingsRequest, _auth: str 
                 return convert_resp(
                     code=500, status=500, message="Failed to reinitialize VLM client"
                 )
+            if not GlobalLLMClient.get_instance().reinitialize():
+                return convert_resp(
+                    code=500, status=500, message="Failed to reinitialize LLM client"
+                )
             if not GlobalEmbeddingClient.get_instance().reinitialize():
                 return convert_resp(
                     code=500, status=500, message="Failed to reinitialize embedding client"
+                )
+            reranker = GlobalRerankerClient.get_instance()
+            if cfg.reranker and not reranker.reinitialize():
+                return convert_resp(
+                    code=500, status=500, message="Failed to reinitialize reranker client"
                 )
 
             logger.info("Model settings updated successfully")
@@ -232,25 +265,28 @@ async def validate_llm_config(_auth: str = auth_dependency):
             return convert_resp(code=500, status=500, message="配置未初始化")
 
         vlm_cfg = config.get("vlm_model", {})
+        llm_cfg = config.get("llm_model", {})
         emb_cfg = config.get("embedding_model", {})
+        reranker_cfg = config.get("reranker_model", {})
 
-        # Validate VLM
-        vlm_valid, vlm_msg = LLMClient(llm_type=LLMType.CHAT, config=vlm_cfg).validate()
+        validations = [
+            ("VLM", vlm_cfg, LLMType.CHAT),
+            ("LLM", llm_cfg, LLMType.CHAT),
+            ("Embedding", emb_cfg, LLMType.EMBEDDING),
+        ]
+        if reranker_cfg:
+            validations.append(("Reranker", reranker_cfg, LLMType.CHAT))
 
-        # Validate Embedding
-        emb_valid, emb_msg = LLMClient(llm_type=LLMType.EMBEDDING, config=emb_cfg).validate()
+        errors = []
+        for label, model_cfg, llm_type in validations:
+            valid, msg = LLMClient(llm_type=llm_type, config=model_cfg).validate()
+            if not valid:
+                errors.append(f"{label}: {msg}")
 
-        # Build error message
-        if not vlm_valid or not emb_valid:
-            errors = []
-            if not vlm_valid:
-                errors.append(f"VLM: {vlm_msg}")
-            if not emb_valid:
-                errors.append(f"Embedding: {emb_msg}")
-            error_msg = "; ".join(errors)
-            return convert_resp(code=400, status=400, message=error_msg)
+        if errors:
+            return convert_resp(code=400, status=400, message="; ".join(errors))
 
-        return convert_resp(code=0, status=200, message="连接测试成功！VLM和Embedding模型均正常")
+        return convert_resp(code=0, status=200, message="连接测试成功！VLM、LLM、Embedding模型均正常")
 
     except Exception as e:
         logger.exception(f"Validation failed: {e}")

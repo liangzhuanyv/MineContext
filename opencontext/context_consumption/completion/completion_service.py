@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional
 
 from opencontext.config.global_config import get_prompt_manager
 from opencontext.context_consumption.completion.completion_cache import get_completion_cache
-from opencontext.llm.global_vlm_client import generate_with_messages
+from opencontext.llm.global_llm_client import generate_with_messages
 from opencontext.models.enums import CompletionType
 from opencontext.storage.global_storage import get_storage
 from opencontext.tools.retrieval_tools.semantic_context_tool import SemanticContextTool

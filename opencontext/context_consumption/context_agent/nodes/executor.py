@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Any, Dict
 
 from opencontext.config.global_config import get_prompt_group
-from opencontext.llm.global_vlm_client import generate_stream_for_agent
+from opencontext.llm.global_llm_client import generate_stream_for_agent
 from opencontext.storage.global_storage import get_storage
 
 from ..core.state import StreamEvent, WorkflowState

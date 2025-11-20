@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional
 
 from opencontext.config.global_config import get_prompt_group
 from opencontext.context_consumption.generation.debug_helper import DebugHelper
-from opencontext.llm.global_vlm_client import generate_with_messages_async
+from opencontext.llm.global_llm_client import generate_with_messages_async
 from opencontext.models.enums import ContextType
 from opencontext.storage.global_storage import get_storage
 from opencontext.tools.tool_definitions import ALL_TOOL_DEFINITIONS
